@@ -2,6 +2,7 @@
 from django.http import HttpResponse, HttpResponseServerError
 # from django.conf import settings
 from django.core.files.storage import FileSystemStorage
+from django.core.files.storage import default_storage
 from django.views.decorators.csrf import csrf_exempt
 import time
 import hashlib
@@ -23,7 +24,7 @@ def init_model():
 
 def process_file(input_file_url, processed_song_folder_url):
     init_model()
-    global_model.predict(f'{BASE_DIR}{input_file_url}', processed_song_folder_url)
+    global_model.predict(input_file_url, processed_song_folder_url)
 
 def get_md5(file):
     hash_md5 = hashlib.md5()
@@ -37,8 +38,10 @@ def is_wav_mp3_file(file):
     return (kind is not None) and (kind.extension in ['mp3', 'wav'])
 
 def save_file_in_media(name, file):
-    filename = fs.save(name, file)
-    file_url = fs.url(filename)
+    print("Le's try to save in Google Cloud!")
+    filename = default_storage.save(name, file)
+    file_url = default_storage.url(filename)
+    print("File succesfully saved to Google Cloud:", filename, " with url: ", file_url)
     return file_url
 
 def is_good_request(request):
@@ -46,6 +49,13 @@ def is_good_request(request):
 
 def is_used_hash(test_hash_code):
     return ProcessedSong.objects.filter(pk=test_hash_code).exists()
+
+@csrf_exempt
+def download(request):
+    cur_hash = request.GET["hash"]
+    if not is_used_hash(cur_hash):
+        return  HttpResponseServerError('<h1>Hash not found!</h1>')
+    return HttpResponse(ProcessedSong.objects.get(pk=cur_hash).vocal_url)
 
 @csrf_exempt
 def upload(request):
@@ -56,16 +66,16 @@ def upload(request):
         return HttpResponseServerError('<h1>Incorrect file format</h1>')
     md5_of_song = get_md5(input_song)
     if is_used_hash(md5_of_song):
-        song_url =  ProcessedSong.objects.filter(pk=md5_of_song).first().vocal_url
-        return HttpResponse(song_url)
+        # song_url =  ProcessedSong.objects.filter(pk=md5_of_song).first().vocal_url
+        return HttpResponse(md5_of_song)
     input_song_url = save_file_in_media(f'{md5_of_song}.wav', input_song)
-    processed_url = f'{MEDIA_ROOT}/'
-    process_file(input_song_url, processed_url)
-    processed_vocal_url = f'/media/{md5_of_song}/vocals.wav'
-    processed_accompaniment_url = f'/media/{md5_of_song}/accompaniment.wav' 
+    folder_url = input_song_url[:-4]
+    process_file(input_song_url, folder_url)
+    processed_vocal_url = f'{folder_url}/vocals.wav'
+    processed_accompaniment_url = f'{folder_url}/accompaniment.wav' 
     _ = ProcessedSong.objects.create(hash_code=md5_of_song,
                                      input_url=input_song_url,
                                      vocal_url=processed_vocal_url,
                                      accompaniment_url=processed_accompaniment_url)
-    return HttpResponse(processed_vocal_url)        
+    return HttpResponse(md5_of_song)
     
