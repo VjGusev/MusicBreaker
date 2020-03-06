@@ -45,25 +45,31 @@ def save_files(saver, names, files):
         files_urls.append(saver.url(file_name))
     return files_urls
 
-def is_good_request(request):
+def is_download_request(request):
+    return request.method == 'GET' and 'hash' in request.GET
+
+def is_upload_request(request):
     return request.method == 'POST' and 'song' in request.FILES
 
 def is_used_hash(test_hash_code):
     return ProcessedSong.objects.filter(pk=test_hash_code).exists()
 
-@csrf_exempt
 def download(request):
+    if not is_download_request:
+        return JsonResponse(status=HTTPStatus.BAD_REQUEST,
+                            data={'message': 'Incorrect request format'})
+
     cur_hash = request.GET["hash"]
     if not is_used_hash(cur_hash):
-        return JsonResponse(status=HTTPStatus.BAD_REQUEST,
+        return JsonResponse(status=HTTPStatus.NOT_FOUND,
                             data={'message': 'Hash code not found'})
     return JsonResponse({'vocal_url': ProcessedSong.objects.get(pk=cur_hash).vocal_url})
 
 @csrf_exempt
 def upload(request):
-    if not is_good_request(request):
+    if not is_upload_request(request):
         return JsonResponse(status=HTTPStatus.BAD_REQUEST,
-                    data={'message': 'Incorrect request format'})
+                            data={'message': 'Incorrect request format'})
     input_song = request.FILES['song']
     if not is_wav_mp3_file(input_song):
         return JsonResponse(status=HTTPStatus.BAD_REQUEST,
@@ -81,17 +87,16 @@ def upload(request):
         process_file(input_song_url, the_dir_url)
         local_vocal_url = f'{the_dir_url}{md5_of_song}/vocals.wav'
         local_accompaniment_url = f'{the_dir_url}{md5_of_song}/accompaniment.wav'
-        def_song_url, def_vocal_url, def_accomp_url = save_files(default_storage,
-                                                                 [f'{md5_of_song}.wav',
-                                                                  f'{md5_of_song}_vocal.wav',
-                                                                  f'{md5_of_song}_accompaniment.wav'],
-                                                                 [dir_fs.open(input_song_url),
-                                                                  dir_fs.open(local_vocal_url),
-                                                                  dir_fs.open(local_accompaniment_url)])
-        _ = ProcessedSong.objects.create(hash_code=md5_of_song,
-                                         pub_date=datetime.datetime.now(),
-                                         input_url=def_song_url,
-                                         vocal_url=def_vocal_url,
-                                         accompaniment_url=def_accomp_url)
+        default_song_url, default_vocal_url, default_accomp_url = save_files(default_storage,
+                                                                             [f'{md5_of_song}.wav',
+                                                                              f'{md5_of_song}_vocal.wav',
+                                                                              f'{md5_of_song}_accompaniment.wav'],
+                                                                             [dir_fs.open(input_song_url),
+                                                                              dir_fs.open(local_vocal_url),
+                                                                              dir_fs.open(local_accompaniment_url)])
+        ProcessedSong.objects.create(hash_code=md5_of_song,
+                                     pub_date=datetime.datetime.now(),
+                                     input_url=default_song_url,
+                                     vocal_url=default_vocal_url,
+                                     accompaniment_url=default_accomp_url)
     return JsonResponse({'md5_of_song': md5_of_song})
-    
