@@ -13,7 +13,9 @@ import tempfile
 import pathlib
 from django.http import JsonResponse
 from http import HTTPStatus
+from get_voice_server.settings import GS_BUCKET_NAME
 
+from google.cloud import storage
 
 global_model = None
 
@@ -65,6 +67,19 @@ def download(request):
                             data={'message': 'Hash code not found'})
     return JsonResponse({'vocal_url': ProcessedSong.objects.get(pk=cur_hash).vocal_url})
 
+def blob_exists(filename):  
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(GS_BUCKET_NAME)
+    exist = storage.Blob(bucket=bucket, name=filename).exists(storage_client)
+    return exist
+
+def is_in_google_storage(md5_of_song):
+    file_names = [f'{md5_of_song}.wav', f'{md5_of_song}_vocal.wav', f'{md5_of_song}_accompaniment.wav']
+    exist = True
+    for fn in file_names:
+        exist = exist and blob_exists(fn)
+    return exist
+
 @csrf_exempt
 def upload(request):
     if not is_upload_request(request):
@@ -75,9 +90,15 @@ def upload(request):
         return JsonResponse(status=HTTPStatus.BAD_REQUEST,
                             data={'message': 'Incorrect file format'})
     md5_of_song = get_md5(input_song)
-    if is_used_hash(md5_of_song):
+    print("====================This hash: ", md5_of_song)
+    used_hash = is_used_hash(md5_of_song)
+    in_google_storage = is_in_google_storage(md5_of_song)
+    print("====================Is used hash: ", used_hash)
+    print("====================Is in google storage: ", in_google_storage)
+    if used_hash and in_google_storage:
         return JsonResponse({'md5_of_song': md5_of_song})
 
+    print("Processing ....")
     with tempfile.TemporaryDirectory() as directory_name:
         the_dir = pathlib.Path(directory_name)
         the_dir_url = f'{the_dir}/'
@@ -94,9 +115,10 @@ def upload(request):
                                                                              [dir_fs.open(input_song_url),
                                                                               dir_fs.open(local_vocal_url),
                                                                               dir_fs.open(local_accompaniment_url)])
-        ProcessedSong.objects.create(hash_code=md5_of_song,
-                                     pub_date=datetime.datetime.now(),
-                                     input_url=default_song_url,
-                                     vocal_url=default_vocal_url,
-                                     accompaniment_url=default_accomp_url)
+        if not used_hash:
+            ProcessedSong.objects.create(hash_code=md5_of_song,
+                                         pub_date=datetime.datetime.now(),
+                                         input_url=default_song_url,
+                                         vocal_url=default_vocal_url,
+                                         accompaniment_url=default_accomp_url)
     return JsonResponse({'md5_of_song': md5_of_song})
