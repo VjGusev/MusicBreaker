@@ -17,10 +17,8 @@ class AccessLogsModel(models.Model):
     
     def __str__(self):
         obj_dict = vars(self)
-        try:
+        if "_state" in obj_dict:
             del obj_dict["_state"]
-        except KeyError:
-            print("Key '_state' not found in AccessLogsModel")
         return str(obj_dict)
 
     class Meta:
