@@ -1,6 +1,7 @@
 from .models import AccessLogsModel
 from django.conf import settings
 from django.utils import timezone
+from django.http import HttpResponseServerError
 import logging
 
 class AccessLogsMiddleware(object):
@@ -59,5 +60,5 @@ class AccessLogsMiddleware(object):
 
     def process_exception(self, request, exception):
         self.logger.exception('xxxxxxxx get_response fails in middleware xxxxxxxx')
-        AccessLogsModel.objects.create(**self.access_logs_data)
+        self.process_response(request, HttpResponseServerError())
         raise exception
