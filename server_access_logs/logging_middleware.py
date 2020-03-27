@@ -63,4 +63,4 @@ class AccessLogsMiddleware(object):
     def process_exception(self, request, exception):
         self.logger.exception('xxxxxxxx get_response fails in middleware xxxxxxxx')
         return JsonResponse(status=HTTPStatus.INTERNAL_SERVER_ERROR,
-                            data={'message': 'Fail respose processing'})
+                            data={'message': 'Fail response processing'})
