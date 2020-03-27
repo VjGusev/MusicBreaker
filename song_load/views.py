@@ -26,13 +26,11 @@ def process_file(input_file_url, processed_song_folder_url):
         init_model()
     except:
         logger.exception("xxxxxxxx Model initialization fail xxxxxxxx")
-        raise
 
     try:
         global_model.predict(input_file_url, processed_song_folder_url)
     except:
         logger.exception("xxxxxxxx Model prediction fail xxxxxxxx")
-        raise
 
 
 def get_md5(file):
@@ -89,7 +87,6 @@ def is_in_storage(md5_of_song):
 
 @csrf_exempt
 def upload(request):
-    logger.info('============================================================')
     logger.info('====================Check upload request...')
     if not is_upload_request(request):
         return JsonResponse(status=HTTPStatus.BAD_REQUEST,

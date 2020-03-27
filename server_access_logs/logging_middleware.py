@@ -1,7 +1,8 @@
 from .models import AccessLogsModel
 from django.conf import settings
 from django.utils import timezone
-from django.http import HttpResponseServerError
+from http import HTTPStatus
+from django.http import JsonResponse
 import logging
 
 class AccessLogsMiddleware(object):
@@ -13,11 +14,11 @@ class AccessLogsMiddleware(object):
 
     def __call__(self, request):
         # create session
+        self.logger.info('=============================New request===============================')
         if not request.session.session_key:
             request.session.create()
 
         self.access_logs_data = dict()
-
         self.process_request(request)
 
         response = self.get_response(request)
@@ -56,9 +57,10 @@ class AccessLogsMiddleware(object):
 
         model = AccessLogsModel.objects.create(**self.access_logs_data)
         self.logger.info(model)
-        self.logger.info('====================================')
+        self.logger.info('==================================================================')
+
 
     def process_exception(self, request, exception):
         self.logger.exception('xxxxxxxx get_response fails in middleware xxxxxxxx')
-        self.process_response(request, HttpResponseServerError())
-        raise exception
+        return JsonResponse(status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                            data={'message': 'Fail respose processing'})
